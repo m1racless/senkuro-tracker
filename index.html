@@ -1,0 +1,2025 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MangaList</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Manrope:wght@400;500;600;700&display=swap');
+
+:root{
+  --bg: #120e1a;
+  --surface: #1c1626;
+  --surface-2: #251c33;
+  --line: #362a48;
+  --text: #f1ecf7;
+  --muted: #948aa8;
+  --accent: #ff6f9c;
+  --accent-dim: #6b3652;
+  --gold: #ffb454;
+  --danger: #ff7a7a;
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+
+body{
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Manrope', sans-serif;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* aurora blob background */
+#bg-fx{
+  position: fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;
+}
+.blob{
+  position:absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: .35;
+  animation: drift 22s ease-in-out infinite;
+}
+.blob:nth-child(1){ width:520px; height:520px; background: var(--accent); top:-160px; left:-120px; animation-delay:0s;}
+.blob:nth-child(2){ width:480px; height:480px; background: #5b6fff; bottom:-180px; right:-100px; animation-delay:-7s;}
+.blob:nth-child(3){ width:360px; height:360px; background: var(--gold); top:35%; right:15%; opacity:.18; animation-delay:-14s;}
+@keyframes drift{
+  0%,100%{ transform: translate(0,0) scale(1); }
+  50%{ transform: translate(40px,-30px) scale(1.08); }
+}
+#grain{
+  position: fixed; inset:0; z-index:0; pointer-events:none;
+  opacity: .05;
+  mix-blend-mode: overlay;
+}
+
+.wrap{
+  position:relative; z-index:1;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 56px 28px 100px;
+}
+
+/* top-level nav between sections */
+.main-nav{
+  display:flex; gap:10px;
+  margin-bottom: 36px;
+}
+.nav-tab{
+  font-family:'Unbounded', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing:.02em;
+  padding: 11px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  text-transform: lowercase;
+  transition: all .15s ease;
+}
+.nav-tab:hover:not(.active){ border-color: var(--accent-dim); color: var(--text); }
+.nav-tab.active{
+  background: var(--accent);
+  color: #17101d;
+  border-color: var(--accent);
+}
+.view{ display:none; }
+.view.active{ display:block; }
+
+/* generic panel used by the card-drops section */
+.panel{
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px;
+  margin-bottom: 22px;
+}
+.panel h3{
+  font-family:'Unbounded', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.panel h3 .hint{
+  font-family:'Manrope', sans-serif;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.drop-form{
+  display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;
+}
+.drop-form .field{ flex:1; min-width:130px; margin-bottom:0; }
+
+.stat-row{
+  display:flex; align-items:center; gap:12px;
+  margin-bottom: 10px;
+  font-family:'Manrope', sans-serif;
+  font-size: 13px;
+}
+.stat-label{
+  width: 96px;
+  font-weight: 700;
+  flex-shrink:0;
+}
+.stat-bar-track{
+  flex:1; height: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.stat-bar-fill{
+  height:100%;
+  border-radius: 6px;
+  transition: width .3s ease;
+}
+.stat-count{
+  width: 120px;
+  text-align: right;
+  color: var(--muted);
+  flex-shrink:0;
+}
+
+.stats-text{
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.history-row{
+  display:flex; align-items:center; gap:14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-family:'Manrope', sans-serif;
+  font-size: 13px;
+}
+.history-row:last-child{ border-bottom:none; }
+.history-date{ width: 96px; color: var(--muted); flex-shrink:0; }
+.rank-badge{
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  width: 96px;
+  text-align:center;
+  flex-shrink:0;
+}
+.history-qty{ width: 44px; font-weight: 600; flex-shrink:0; }
+.history-delete{
+  margin-left:auto;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.shard-row{
+  display:flex; align-items:center; gap:14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-family:'Manrope', sans-serif;
+  font-size: 13px;
+}
+.shard-row:last-child{ border-bottom:none; }
+.shard-info{ flex:1; min-width:0; }
+.shard-name{
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shard-title{
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+.shard-qty{ width: 44px; color: var(--muted); flex-shrink:0; }
+.shard-value{ width: 110px; text-align:right; color: var(--muted); flex-shrink:0; }
+.shard-total{ width: 110px; text-align:right; font-weight: 700; flex-shrink:0; }
+
+.day-row{
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.day-row:last-child{ border-bottom:none; }
+.day-row-top{
+  display:flex; align-items:baseline; justify-content:space-between;
+  margin-bottom: 8px;
+  font-family:'Manrope', sans-serif;
+}
+.day-date{
+  font-family:'Unbounded', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.day-date.today{ color: var(--accent); }
+.day-total{
+  font-size: 12px;
+  color: var(--muted);
+}
+.day-chips{
+  display:flex; flex-wrap:wrap; gap:6px;
+}
+.day-chip{
+  font-family:'Manrope', sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.rank-qty-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+}
+.rank-qty-item{
+  display:flex; align-items:center; gap:8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.rank-qty-item label{
+  font-family:'Manrope', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  flex: 1;
+}
+.rank-qty-item input{
+  width: 52px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Manrope', sans-serif;
+  font-size: 13px;
+  padding: 5px 6px;
+  text-align: center;
+}
+.rank-qty-item input:focus-visible{ outline: 2px solid var(--accent); outline-offset:1px; }
+
+header{
+  display:flex; align-items:flex-end; justify-content:space-between;
+  flex-wrap:wrap; gap:20px;
+  margin-bottom: 44px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 28px;
+}
+
+h1{
+  font-family:'Unbounded', sans-serif;
+  font-weight: 800;
+  font-size: 38px;
+  letter-spacing: -0.01em;
+  text-transform: lowercase;
+}
+h1 span{ color: var(--accent); }
+
+.subtitle{
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 8px;
+  font-family: 'Manrope', sans-serif;
+}
+
+.header-actions{
+  display:flex; gap:10px;
+}
+
+.add-btn{
+  background: var(--accent);
+  color: #17101d;
+  border: none;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease;
+  box-shadow: 0 0 0 rgba(255,111,156,0);
+}
+.add-btn:hover{ transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,111,156,.25); }
+.add-btn:focus-visible{ outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.icon-btn{
+  width: 44px; height:44px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor:pointer;
+  font-size: 18px;
+  transition: color .15s ease, border-color .15s ease;
+}
+.icon-btn:hover{ color: var(--text); border-color: var(--accent-dim); }
+
+.filters{
+  display:flex; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; gap:14px;
+  margin-bottom: 28px;
+}
+.tabs{
+  display:flex; gap:6px; flex-wrap:wrap;
+}
+.tab{
+  font-family:'Manrope', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor:pointer;
+  transition: all .15s ease;
+}
+.tab.active{
+  background: var(--accent);
+  color: #17101d;
+  border-color: var(--accent);
+}
+.tab:hover:not(.active){ border-color: var(--accent-dim); color: var(--text); }
+
+.sort-select{
+  font-family:'Manrope', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 24px;
+}
+
+.card{
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+  display:flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: border-color .2s ease, transform .2s ease;
+}
+.card:hover{ border-color: var(--accent-dim); transform: translateY(-3px); }
+
+/* bookmark ribbon = progress signature element */
+.ribbon{
+  position:absolute; top:0; right:22px;
+  width: 34px;
+  padding-top: 10px;
+  padding-bottom: 14px;
+  background: var(--gold);
+  color: #16130a;
+  font-family:'Manrope', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  text-align:center;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  z-index: 2;
+}
+
+.cover{
+  width: 100%;
+  aspect-ratio: 2/3;
+  border-radius: 10px;
+  object-fit: contain;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.cover.placeholder{
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Unbounded', sans-serif;
+  font-size: 40px;
+  color: var(--line);
+  text-transform: uppercase;
+}
+
+.card-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
+
+.card-title{
+  font-family:'Unbounded', sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  line-height:1.3;
+}
+
+.status-badge{
+  font-family:'Manrope', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.status-select{
+  font-family:'Manrope', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 4px 22px 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 9px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23000' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.status-select:focus-visible{ outline: 2px solid var(--accent); outline-offset:1px; }
+.status-reading{ background: rgba(255,111,156,.15); color: var(--accent); }
+.status-planned{ background: rgba(255,180,84,.15); color: var(--gold); }
+.status-completed{ background: rgba(120,220,160,.15); color: #7fdba4; }
+.status-dropped{ background: rgba(148,138,168,.15); color: var(--muted); }
+
+.progress-row{
+  display:flex; align-items:center; gap:10px;
+  font-family:'Manrope', sans-serif;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.bar{
+  flex:1;
+  height: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow:hidden;
+}
+.bar-fill{
+  height:100%;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  transition: width .3s ease;
+}
+
+.chapter-controls{
+  display:flex; align-items:center; gap:8px;
+  font-family:'Manrope', sans-serif;
+}
+.chapter-controls button{
+  width: 28px; height:28px;
+  border-radius:6px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor:pointer;
+  font-size:16px;
+  line-height:1;
+  transition: background .15s ease;
+  flex-shrink:0;
+}
+.chapter-controls button:hover{ background: var(--accent-dim); }
+.chapter-controls button:focus-visible{ outline: 2px solid var(--gold); outline-offset:1px; }
+
+.chapter-num{
+  font-size: 14px;
+  width: 56px;
+  text-align:center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font-family:'Manrope', sans-serif;
+  padding: 5px 4px;
+  -moz-appearance: textfield;
+}
+.chapter-num::-webkit-outer-spin-button,
+.chapter-num::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+.chapter-num:focus-visible{ outline: 2px solid var(--accent); outline-offset:1px; }
+
+.cover-lookup input[type="file"]{
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-family: 'Manrope', sans-serif;
+  font-size: 12px;
+}
+.cover-preview{
+  width: 100%;
+  aspect-ratio: 2/3;
+  border-radius: 8px;
+  object-fit: contain;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  margin-top: 8px;
+  display:none;
+}
+.cover-preview.show{ display:block; }
+
+.actions{
+  display:flex; gap:10px; margin-top: 4px;
+}
+
+.check-row{
+  display:flex; align-items:center; gap:8px;
+}
+.btn-check{
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family:'Manrope', sans-serif;
+  white-space: nowrap;
+  transition: border-color .15s ease;
+}
+.btn-check:hover{ border-color: var(--accent); }
+.btn-check:disabled{ opacity:.6; cursor: default; }
+
+.check-result{
+  font-family:'Manrope', sans-serif;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.4;
+  flex: 1;
+}
+.check-result.ok{ color: #7fdba4; }
+.check-result.blocked{ color: var(--gold); }
+.check-result.error{ color: var(--danger); }
+
+.new-chapter-dot{
+  position:absolute; top: 12px; left: 12px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid var(--surface);
+  z-index: 3;
+  box-shadow: 0 0 0 3px rgba(255,122,122,.2);
+}
+
+.btn-primary{
+  flex:1;
+  background: var(--accent);
+  color:#0b0d14;
+  border:none;
+  border-radius:8px;
+  padding: 10px 14px;
+  font-family:'Manrope', sans-serif;
+  font-weight:600;
+  font-size: 13px;
+  cursor:pointer;
+  text-align:center;
+  text-decoration:none;
+  display:flex; align-items:center; justify-content:center;
+}
+.btn-primary:hover{ filter:brightness(1.08); }
+
+.btn-ghost{
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family:'Manrope', sans-serif;
+}
+.btn-ghost:hover{ color: var(--danger); border-color: var(--danger); }
+
+/* empty state */
+.empty{
+  text-align:center;
+  padding: 80px 20px;
+  color: var(--muted);
+  font-family:'Manrope', sans-serif;
+}
+
+/* modal */
+.modal-backdrop{
+  position: fixed; inset:0;
+  background: rgba(5,6,10,.7);
+  backdrop-filter: blur(4px);
+  display:none;
+  align-items:center; justify-content:center;
+  z-index: 10;
+  padding: 20px;
+}
+.modal-backdrop.open{ display:flex; }
+
+.modal{
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 28px;
+  width: 100%;
+  max-width: 420px;
+}
+.modal h2{
+  font-family:'Unbounded', sans-serif;
+  font-size: 22px;
+  margin-bottom: 20px;
+}
+.field{ margin-bottom: 14px; }
+.field label{
+  display:block;
+  font-family:'Manrope', sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.field input{
+  width:100%;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+}
+.field input:focus-visible{ outline: 2px solid var(--accent); outline-offset:1px; }
+
+.modal-actions{
+  display:flex; gap:10px; margin-top: 20px;
+}
+
+.field-row{ display:flex; gap:10px; }
+.field-row .field{ flex:1; }
+
+.cover-lookup{
+  display:flex; gap:8px;
+}
+.cover-lookup input{ flex:1; }
+.cover-lookup button{
+  white-space:nowrap;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0 14px;
+  cursor:pointer;
+  font-family:'Manrope', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+}
+.cover-lookup button:hover{ border-color: var(--accent); }
+.field-hint{ font-size: 11px; color: var(--muted); margin-top:5px; }
+
+.field select{
+  width:100%;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: 'Manrope', sans-serif;
+  font-size: 14px;
+}
+
+.sync-status{
+  font-family:'Manrope', sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+  display:flex; align-items:center; gap:6px;
+  margin-bottom: 16px;
+}
+.sync-dot{ width:7px; height:7px; border-radius:50%; background: var(--muted); }
+.sync-dot.on{ background: #7fdba4; }
+
+.code-block{
+  background: #0c0910;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--muted);
+  overflow-x: auto;
+  white-space: pre;
+  margin: 10px 0 16px;
+}
+
+@media (max-width: 480px){
+  h1{ font-size: 30px; }
+  .wrap{ padding: 36px 18px 80px; }
+  .field-row{ flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<div id="bg-fx">
+  <div class="blob"></div>
+  <div class="blob"></div>
+  <div class="blob"></div>
+</div>
+
+<div class="wrap">
+  <nav class="main-nav" id="mainNav">
+    <button class="nav-tab active" data-view="shelf">Манга</button>
+    <button class="nav-tab" data-view="cards">Дропы карт</button>
+    <button class="nav-tab" data-view="shards">Осколки</button>
+  </nav>
+
+  <div id="shelfView" class="view active">
+  <header>
+    <div>
+      <h1><span>Manga</span>List</h1>
+      <div class="subtitle">личный трекер прогресса чтения</div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="openSync" title="Синхронизация">⇅</button>
+      <button class="add-btn" id="openAdd">+ Добавить тайтл</button>
+    </div>
+  </header>
+
+  <div class="filters">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-status="all">Все</button>
+      <button class="tab" data-status="reading">Читаю</button>
+      <button class="tab" data-status="planned">Планирую</button>
+      <button class="tab" data-status="completed">Прочитано</button>
+      <button class="tab" data-status="dropped">Брошено</button>
+    </div>
+    <select class="sort-select" id="sortSelect">
+      <option value="updated">Недавно обновлённые</option>
+      <option value="title">По названию</option>
+      <option value="progress">По прогрессу</option>
+    </select>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="emptyState" style="display:none;">Здесь пока пусто. Добавь первый тайтл.</div>
+  </div>
+
+  <div id="cardsView" class="view">
+    <header>
+      <div>
+        <h1><span>Дропы</span> карт</h1>
+        <div class="subtitle">учёт выпадения карт и осколков</div>
+      </div>
+    </header>
+
+    <div class="panel">
+      <h3>Добавить дроп<span class="hint">можно сразу несколько рангов за раз</span></h3>
+      <form id="dropForm">
+        <div class="field" style="max-width:220px; margin-bottom:18px;">
+          <label for="d-date">Дата</label>
+          <input id="d-date" type="date" required>
+        </div>
+        <div class="rank-qty-grid" id="rankQtyGrid"></div>
+        <button type="submit" class="btn-primary" style="margin-top:18px; padding:11px 22px;">Добавить дроп</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h3>Импорт из файла<span class="hint">.xlsx / .csv — колонки: Дата, ранги (F, D, C, B, A, S, oD, oC, oB, oA, oS)</span></h3>
+      <div class="drop-form">
+        <div class="field">
+          <label for="drop-import-file">Файл</label>
+          <input id="drop-import-file" type="file" accept=".xlsx,.xls,.csv">
+        </div>
+        <button type="button" class="btn-check" id="drop-import-btn" style="flex:0 0 auto;">Импортировать</button>
+      </div>
+      <div class="field-hint" id="drop-import-result" style="margin-top:10px;">Первая строка должна быть заголовком с названиями рангов; строки без даты пропускаются.</div>
+    </div>
+
+    <div class="panel">
+      <h3>Диапазон для статистики</h3>
+      <div class="drop-form">
+        <div class="field">
+          <label for="range-from">От</label>
+          <input id="range-from" type="date">
+        </div>
+        <div class="field">
+          <label for="range-to">До</label>
+          <input id="range-to" type="date">
+        </div>
+        <button type="button" class="btn-ghost" id="rangeAll" style="flex:0 0 auto;">За всё время</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Статистика<span class="hint" id="statsTotal"></span></h3>
+      <div id="statsBars"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Статистика (текстом)<span class="hint">для копирования</span></h3>
+      <div id="statsText" class="stats-text"></div>
+    </div>
+
+    <div class="panel">
+      <h3>По дням</h3>
+      <div id="dailyBreakdown"></div>
+      <div class="empty" id="dailyEmpty" style="display:none; padding:20px 0;">Нет данных за выбранный диапазон.</div>
+    </div>
+
+    <div class="panel">
+      <h3>История</h3>
+      <div id="dropHistory"></div>
+      <div class="empty" id="dropEmpty" style="display:none; padding:20px 0;">Записей пока нет — добавь первый дроп выше.</div>
+    </div>
+  </div>
+
+  <div id="shardsView" class="view">
+    <header>
+      <div>
+        <h1><span>Осколки</span></h1>
+        <div class="subtitle">учёт осколков на аккаунте — для продажи/обмена</div>
+      </div>
+    </header>
+
+    <div class="panel">
+      <h3>Добавить осколок</h3>
+      <form id="shardForm" class="drop-form">
+        <div class="field">
+          <label for="s-name">Название</label>
+          <input id="s-name" type="text" required placeholder="например: Осколок Феникса">
+        </div>
+        <div class="field">
+          <label for="s-title">Тайтл</label>
+          <input id="s-title" type="text" placeholder="с какого произведения">
+        </div>
+        <div class="field">
+          <label for="s-rank">Ранг</label>
+          <select id="s-rank" required>
+            <option value="oD">oD</option>
+            <option value="oC">oC</option>
+            <option value="oB">oB</option>
+            <option value="oA">oA</option>
+            <option value="oS">oS</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="s-qty">Количество</label>
+          <input id="s-qty" type="number" min="0" step="any" value="1" required>
+        </div>
+        <div class="field">
+          <label for="s-value">Стоимость за 1 шт.</label>
+          <input id="s-value" type="number" min="0" step="any" placeholder="необязательно">
+        </div>
+        <button type="submit" class="btn-primary" style="flex:0 0 auto; padding:11px 22px;">Добавить</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h3>Импорт из файла<span class="hint">.xlsx / .csv — колонки: название, стоимость</span></h3>
+      <div class="drop-form">
+        <div class="field">
+          <label for="s-import-file">Файл</label>
+          <input id="s-import-file" type="file" accept=".xlsx,.xls,.csv">
+        </div>
+        <div class="field" style="max-width:140px;">
+          <label for="s-import-rank">Ранг для всех строк</label>
+          <select id="s-import-rank">
+            <option value="oD">oD</option>
+            <option value="oC">oC</option>
+            <option value="oB">oB</option>
+            <option value="oA">oA</option>
+            <option value="oS">oS</option>
+          </select>
+        </div>
+        <button type="button" class="btn-check" id="s-import-btn" style="flex:0 0 auto;">Импортировать</button>
+      </div>
+      <div class="field-hint" id="s-import-result" style="margin-top:10px;">Если в названии есть текст в скобках — он автоматически станет тайтлом, а остальное — именем осколка.</div>
+    </div>
+
+    <div class="panel">
+      <h3>На аккаунте по рангам<span class="hint" id="shardStatsTotal"></span></h3>
+      <div id="shardStatsBars"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Инвентарь</h3>
+      <div id="shardInventory"></div>
+      <div class="empty" id="shardEmpty" style="display:none; padding:20px 0;">Пока пусто — добавь осколок выше.</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h2>Новый тайтл</h2>
+    <form id="mangaForm">
+      <div class="field">
+        <label for="f-title">Название</label>
+        <input id="f-title" type="text" required placeholder="Как выжить в академии">
+      </div>
+      <div class="field">
+        <label for="f-url">Ссылка на источник</label>
+        <input id="f-url" type="url" required placeholder="https://...">
+      </div>
+      <div class="field">
+        <label for="f-cover">Обложка (URL)</label>
+        <div class="cover-lookup">
+          <input id="f-cover" type="url" placeholder="https://... или найди ниже">
+          <button type="button" id="lookupCover">Найти</button>
+        </div>
+        <div class="field-hint" id="coverHint">Поиск обложки через открытую базу AniList по названию</div>
+        <div class="cover-lookup" style="margin-top:8px;">
+          <input id="f-cover-file" type="file" accept="image/*">
+        </div>
+        <div class="field-hint">Не нашлось — загрузи картинку со своего устройства</div>
+        <img id="coverPreview" class="cover-preview" alt="">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="f-current">Текущая глава</label>
+          <input id="f-current" type="number" min="0" step="any" value="0">
+        </div>
+        <div class="field">
+          <label for="f-total">Всего глав</label>
+          <input id="f-total" type="number" min="0" step="any" placeholder="необязательно">
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-status">Статус</label>
+        <select id="f-status">
+          <option value="reading">Читаю</option>
+          <option value="planned">Планирую</option>
+          <option value="completed">Прочитано</option>
+          <option value="dropped">Брошено</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="cancelModal" style="flex:1;">Отмена</button>
+        <button type="submit" class="btn-primary" style="flex:1;">Сохранить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="syncBackdrop">
+  <div class="modal">
+    <h2>Синхронизация</h2>
+    <div class="sync-status"><span class="sync-dot" id="syncDot"></span><span id="syncStatusText">Отключена — данные хранятся только в этом браузере</span></div>
+    <div class="field-hint" style="margin-bottom:12px;">
+      Чтобы видеть список на телефоне и компе, создай бесплатный проект на supabase.com, выполни в SQL Editor:
+    </div>
+    <div class="code-block">create table manga_shelf (
+  id uuid primary key,
+  title text, url text, cover text,
+  current int, total int, status text,
+  updated_at bigint
+);
+alter table manga_shelf enable row level security;
+create policy "public access" on manga_shelf
+  for all using (true) with check (true);</div>
+    <div class="field">
+      <label for="f-supabase-url">Supabase URL</label>
+      <input id="f-supabase-url" type="url" placeholder="https://xxxx.supabase.co">
+    </div>
+    <div class="field">
+      <label for="f-supabase-key">Supabase anon key</label>
+      <input id="f-supabase-key" type="text" placeholder="eyJhbGci...">
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="disableSync" style="flex:1;">Отключить</button>
+      <button type="button" class="btn-primary" id="saveSync" style="flex:1;">Сохранить и синхронизировать</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'manga-shelf-v2';
+const SYNC_KEY = 'manga-shelf-sync-config';
+
+const STATUS_LABELS = {
+  reading: 'Читаю',
+  planned: 'Планирую',
+  completed: 'Прочитано',
+  dropped: 'Брошено'
+};
+
+function loadList(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  const seed = [{
+    id: crypto.randomUUID(),
+    title: 'Как выжить в академии',
+    url: 'https://wamanga.ru/manhwa/rukovodstvo-po-vyzhivaniyu-v-akademii',
+    cover: '',
+    current: 0,
+    total: null,
+    status: 'reading',
+    updated_at: Date.now()
+  }];
+  saveList(seed);
+  return seed;
+}
+
+function saveList(l){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(l));
+}
+
+let list = loadList();
+let activeFilter = 'all';
+let activeSort = 'updated';
+
+// ---- Supabase sync ----
+function loadSyncConfig(){
+  try{
+    const raw = localStorage.getItem(SYNC_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return { enabled: false, url: '', key: '' };
+}
+function saveSyncConfig(cfg){
+  localStorage.setItem(SYNC_KEY, JSON.stringify(cfg));
+}
+let syncConfig = loadSyncConfig();
+
+function sbHeaders(){
+  return {
+    'apikey': syncConfig.key,
+    'Authorization': 'Bearer ' + syncConfig.key,
+    'Content-Type': 'application/json',
+    'Prefer': 'resolution=merge-duplicates'
+  };
+}
+
+async function syncPush(item){
+  if(!syncConfig.enabled) return;
+  try{
+    await fetch(`${syncConfig.url}/rest/v1/manga_shelf`, {
+      method: 'POST',
+      headers: sbHeaders(),
+      body: JSON.stringify([item])
+    });
+  }catch(e){ console.warn('Sync push failed', e); }
+}
+
+async function syncDelete(id){
+  if(!syncConfig.enabled) return;
+  try{
+    await fetch(`${syncConfig.url}/rest/v1/manga_shelf?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: sbHeaders()
+    });
+  }catch(e){ console.warn('Sync delete failed', e); }
+}
+
+async function syncPullAll(){
+  if(!syncConfig.enabled) return;
+  try{
+    const res = await fetch(`${syncConfig.url}/rest/v1/manga_shelf?select=*`, {
+      headers: sbHeaders()
+    });
+    if(!res.ok) throw new Error('Bad response');
+    const remote = await res.json();
+    if(Array.isArray(remote) && remote.length){
+      list = remote.map(r => ({
+        id: r.id, title: r.title, url: r.url, cover: r.cover,
+        current: r.current, total: r.total, status: r.status || 'reading',
+        updated_at: r.updated_at || Date.now()
+      }));
+      saveList(list);
+      renderTabs();
+      render();
+    }
+    updateSyncStatusUI(true);
+  }catch(e){
+    console.warn('Sync pull failed', e);
+    updateSyncStatusUI(false, true);
+  }
+}
+
+function updateSyncStatusUI(ok, error){
+  const dot = document.getElementById('syncDot');
+  const text = document.getElementById('syncStatusText');
+  if(syncConfig.enabled && ok){
+    dot.classList.add('on');
+    text.textContent = 'Синхронизация включена и работает';
+  } else if(syncConfig.enabled && error){
+    dot.classList.remove('on');
+    text.textContent = 'Включена, но не удалось подключиться — проверь URL и ключ';
+  } else {
+    dot.classList.remove('on');
+    text.textContent = 'Отключена — данные хранятся только в этом браузере';
+  }
+}
+
+// ---- update checker ----
+// tries a direct fetch first; most manga sites block that (no CORS headers), so we
+// fall back to public CORS proxies (server-side fetch that re-adds the headers) in order.
+const CORS_PROXIES = [
+  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  url => 'https://corsproxy.io/?url=' + encodeURIComponent(url)
+];
+
+async function fetchViaProxy(url, proxyBuilder){
+  const res = await fetch(proxyBuilder(url));
+  if(!res.ok) throw new Error('Proxy HTTP ' + res.status);
+  const text = await res.text();
+  if(!text || text.length < 50) throw new Error('Empty proxy response');
+  return text;
+}
+
+async function checkForUpdates(url){
+  const now = Date.now();
+  let html;
+  let source = 'direct';
+
+  try{
+    const res = await fetch(url, { mode: 'cors' });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    html = await res.text();
+  }catch(directErr){
+    for(let i = 0; i < CORS_PROXIES.length; i++){
+      try{
+        html = await fetchViaProxy(url, CORS_PROXIES[i]);
+        source = 'proxy' + (i + 1);
+        break;
+      }catch(proxyErr){
+        continue;
+      }
+    }
+  }
+
+  if(!html){
+    return {
+      status: 'blocked',
+      total: null,
+      count: 0,
+      checkedAt: now,
+      message: 'Не удалось получить страницу — сайт заблокирован напрямую, оба прокси тоже не ответили'
+    };
+  }
+
+  const sourceLabel = source === 'direct' ? '' : `[через прокси ${source.slice(-1)}] `;
+
+  try{
+    // grab numbers from chapter-style links: glava-123, chapter-123, ch-123 etc.
+    const matches = html.match(/(?:glava|chapter|ch)-(\d+(?:\.\d+)?)/gi) || [];
+    const numbers = matches
+      .map(m => parseFloat(m.match(/(\d+(?:\.\d+)?)$/)[1]))
+      .filter(n => !isNaN(n));
+    const unique = [...new Set(numbers)];
+
+    if(unique.length === 0){
+      return {
+        status: 'error',
+        total: null,
+        count: 0,
+        checkedAt: now,
+        message: sourceLabel + 'Страница открылась, но номера глав найти не удалось'
+      };
+    }
+
+    const maxChapter = Math.max(...unique);
+    return {
+      status: 'ok',
+      total: maxChapter,
+      count: unique.length,
+      checkedAt: now,
+      message: sourceLabel + `Найдено глав: ${unique.length}, последняя: ${maxChapter}`
+    };
+  }catch(err){
+    return {
+      status: 'error',
+      total: null,
+      count: 0,
+      checkedAt: now,
+      message: sourceLabel + 'Не удалось разобрать страницу'
+    };
+  }
+}
+
+// ---- rendering ----
+function getFiltered(){
+  let items = activeFilter === 'all' ? list.slice() : list.filter(i => i.status === activeFilter);
+  if(activeSort === 'title'){
+    items.sort((a,b) => a.title.localeCompare(b.title, 'ru'));
+  } else if(activeSort === 'progress'){
+    items.sort((a,b) => {
+      const pa = a.total ? a.current/a.total : (a.current > 0 ? 0.01 : 0);
+      const pb = b.total ? b.current/b.total : (b.current > 0 ? 0.01 : 0);
+      return pb - pa;
+    });
+  } else {
+    items.sort((a,b) => (b.updated_at||0) - (a.updated_at||0));
+  }
+  return items;
+}
+
+function render(){
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('emptyState');
+  grid.innerHTML = '';
+
+  const items = getFiltered();
+
+  if(items.length === 0){
+    empty.style.display = 'block';
+    empty.textContent = list.length === 0 ? 'Здесь пока пусто. Добавь первый тайтл.' : 'Ничего не найдено в этой категории.';
+    return;
+  }
+  empty.style.display = 'none';
+
+  items.forEach(item => {
+    const pct = item.total ? Math.min(100, Math.round((item.current / item.total) * 100)) : null;
+    const status = item.status || 'reading';
+
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const coverHtml = item.cover
+      ? `<img class="cover" src="${escapeAttr(item.cover)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'cover placeholder',textContent:'${escapeAttr(item.title.slice(0,2).toUpperCase())}'}))">`
+      : `<div class="cover placeholder">${escapeHtml(item.title.slice(0,2).toUpperCase())}</div>`;
+
+    card.innerHTML = `
+      ${pct !== null ? `<div class="ribbon">${pct}%</div>` : ''}
+      ${(item.lastCheck && item.lastCheck.total && item.lastCheck.total > item.current) ? `<div class="new-chapter-dot" title="Есть новые главы"></div>` : ''}
+      ${coverHtml}
+      <div class="card-top">
+        <div class="card-title">${escapeHtml(item.title)}</div>
+        <select class="status-select status-${status}" data-action="status">
+          <option value="reading"${status==='reading'?' selected':''}>Читаю</option>
+          <option value="planned"${status==='planned'?' selected':''}>Планирую</option>
+          <option value="completed"${status==='completed'?' selected':''}>Прочитано</option>
+          <option value="dropped"${status==='dropped'?' selected':''}>Брошено</option>
+        </select>
+      </div>
+      <div class="progress-row">
+        <span>Гл. ${item.current}${item.total ? ' / ' + item.total : ''}</span>
+        <div class="bar"><div class="bar-fill" style="width:${pct !== null ? pct : (item.current > 0 ? 15 : 0)}%"></div></div>
+      </div>
+      <div class="chapter-controls">
+        <button data-action="dec" aria-label="Уменьшить главу">−</button>
+        <input class="chapter-num" type="number" min="0" step="any" value="${item.current}" data-action="set" aria-label="Текущая глава">
+        <button data-action="inc" aria-label="Увеличить главу">+</button>
+      </div>
+      <div class="check-row">
+        <button class="btn-check" data-action="check">Проверить обновления</button>
+        <span class="check-result${item.lastCheck ? ' ' + item.lastCheck.status : ''}">${item.lastCheck ? item.lastCheck.message : ''}</span>
+      </div>
+      <div class="actions">
+        <a class="btn-primary" href="${escapeAttr(item.url)}" target="_blank" rel="noopener">Продолжить чтение</a>
+        <button class="btn-ghost" data-action="delete">Удалить</button>
+      </div>
+    `;
+
+    card.querySelector('[data-action="status"]').addEventListener('change', (e) => {
+      item.status = e.target.value;
+      item.updated_at = Date.now();
+      saveList(list);
+      syncPush(item);
+      render();
+    });
+
+    card.querySelector('[data-action="inc"]').addEventListener('click', () => {
+      item.current += 1;
+      item.updated_at = Date.now();
+      saveList(list);
+      syncPush(item);
+      render();
+    });
+    card.querySelector('[data-action="dec"]').addEventListener('click', () => {
+      item.current = Math.max(0, item.current - 1);
+      item.updated_at = Date.now();
+      saveList(list);
+      syncPush(item);
+      render();
+    });
+    const chapterInput = card.querySelector('[data-action="set"]');
+    chapterInput.addEventListener('change', () => {
+      const val = Math.max(0, parseFloat(chapterInput.value) || 0);
+      item.current = val;
+      item.updated_at = Date.now();
+      saveList(list);
+      syncPush(item);
+      render();
+    });
+    chapterInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') chapterInput.blur(); });
+
+    card.querySelector('[data-action="check"]').addEventListener('click', async (e) => {
+      const btn = e.target;
+      const resultEl = card.querySelector('.check-result');
+      btn.disabled = true;
+      btn.textContent = 'Проверяю...';
+      resultEl.className = 'check-result';
+      resultEl.textContent = '';
+
+      const result = await checkForUpdates(item.url);
+      item.lastCheck = result;
+      saveList(list);
+      syncPush(item);
+
+      btn.disabled = false;
+      btn.textContent = 'Проверить обновления';
+      render();
+    });
+
+    card.querySelector('[data-action="delete"]').addEventListener('click', () => {
+      if(confirm(`Удалить "${item.title}" из списка?`)){
+        list = list.filter(i => i.id !== item.id);
+        saveList(list);
+        syncDelete(item.id);
+        render();
+      }
+    });
+
+    grid.appendChild(card);
+  });
+}
+
+function renderTabs(){
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.status === activeFilter);
+  });
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+function escapeAttr(str){
+  return String(str).replace(/"/g, '&quot;');
+}
+
+// ---- filters / sort ----
+document.getElementById('tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('.tab');
+  if(!btn) return;
+  activeFilter = btn.dataset.status;
+  renderTabs();
+  render();
+});
+document.getElementById('sortSelect').addEventListener('change', (e) => {
+  activeSort = e.target.value;
+  render();
+});
+
+// ---- add modal ----
+const backdrop = document.getElementById('modalBackdrop');
+document.getElementById('openAdd').addEventListener('click', () => {
+  backdrop.classList.add('open');
+  document.getElementById('f-title').focus();
+});
+document.getElementById('cancelModal').addEventListener('click', closeModal);
+backdrop.addEventListener('click', (e) => { if(e.target === backdrop) closeModal(); });
+
+function closeModal(){
+  backdrop.classList.remove('open');
+  document.getElementById('mangaForm').reset();
+  document.getElementById('coverHint').textContent = 'Поиск обложки через открытую базу AniList по названию';
+  document.getElementById('coverPreview').classList.remove('show');
+}
+
+document.getElementById('lookupCover').addEventListener('click', async () => {
+  const title = document.getElementById('f-title').value.trim();
+  const hint = document.getElementById('coverHint');
+  if(!title){ hint.textContent = 'Сначала введи название'; return; }
+  hint.textContent = 'Ищу...';
+  try{
+    const query = `query ($search: String) { Media(search: $search, type: MANGA) { coverImage { large } title { romaji } } }`;
+    const res = await fetch('https://graphql.anilist.co', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ query, variables: { search: title } })
+    });
+    const data = await res.json();
+    const media = data && data.data && data.data.Media;
+    if(media && media.coverImage && media.coverImage.large){
+      document.getElementById('f-cover').value = media.coverImage.large;
+      hint.textContent = `Найдено: ${media.title.romaji}`;
+    } else {
+      hint.textContent = 'Не найдено — вставь ссылку на обложку вручную';
+    }
+  }catch(e){
+    hint.textContent = 'Не удалось найти — вставь ссылку на обложку вручную';
+  }
+});
+
+document.getElementById('f-cover-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const hint = document.getElementById('coverHint');
+  hint.textContent = 'Обрабатываю изображение...';
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const dataUrl = processCoverImage(img);
+      document.getElementById('f-cover').value = dataUrl;
+      const preview = document.getElementById('coverPreview');
+      preview.src = dataUrl;
+      preview.classList.add('show');
+      const kb = Math.round((dataUrl.length * 0.75) / 1024);
+      hint.textContent = `Готово: обрезано под рамку и сжато (~${kb} КБ)`;
+    };
+    img.onerror = () => { hint.textContent = 'Не удалось прочитать файл'; };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// scales the whole image down to fit the frame without cropping — letterboxes with the card's background
+function processCoverImage(img){
+  const TARGET_RATIO = 2/3;
+  const MAX_WIDTH = 700;
+  const BG_COLOR = '#251c33';
+
+  const outW = MAX_WIDTH;
+  const outH = outW / TARGET_RATIO;
+
+  // fit whole image inside the frame, preserving aspect ratio
+  const scale = Math.min(outW / img.width, outH / img.height, 1);
+  // don't upscale beyond original resolution — only downscale if needed, capped at frame size
+  const drawW = img.width * scale;
+  const drawH = img.height * scale;
+  const dx = (outW - drawW) / 2;
+  const dy = (outH - drawH) / 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = BG_COLOR;
+  ctx.fillRect(0, 0, outW, outH);
+  ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, drawW, drawH);
+
+  const supportsWebp = canvas.toDataURL('image/webp').startsWith('data:image/webp');
+  return canvas.toDataURL(supportsWebp ? 'image/webp' : 'image/jpeg', 0.92);
+}
+
+document.getElementById('f-cover').addEventListener('input', (e) => {
+  const preview = document.getElementById('coverPreview');
+  if(e.target.value){
+    preview.src = e.target.value;
+    preview.classList.add('show');
+  } else {
+    preview.classList.remove('show');
+  }
+});
+
+document.getElementById('mangaForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const title = document.getElementById('f-title').value.trim();
+  const url = document.getElementById('f-url').value.trim();
+  const cover = document.getElementById('f-cover').value.trim();
+  const current = parseFloat(document.getElementById('f-current').value) || 0;
+  const totalRaw = document.getElementById('f-total').value;
+  const total = totalRaw ? parseFloat(totalRaw) : null;
+  const status = document.getElementById('f-status').value;
+
+  const item = { id: crypto.randomUUID(), title, url, cover, current, total, status, updated_at: Date.now() };
+  list.push(item);
+  saveList(list);
+  syncPush(item);
+  closeModal();
+  render();
+});
+
+// ---- sync modal ----
+const syncBackdrop = document.getElementById('syncBackdrop');
+document.getElementById('openSync').addEventListener('click', () => {
+  document.getElementById('f-supabase-url').value = syncConfig.url || '';
+  document.getElementById('f-supabase-key').value = syncConfig.key || '';
+  updateSyncStatusUI(syncConfig.enabled);
+  syncBackdrop.classList.add('open');
+});
+syncBackdrop.addEventListener('click', (e) => { if(e.target === syncBackdrop) syncBackdrop.classList.remove('open'); });
+
+document.getElementById('saveSync').addEventListener('click', async () => {
+  const url = document.getElementById('f-supabase-url').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('f-supabase-key').value.trim();
+  if(!url || !key){
+    document.getElementById('syncStatusText').textContent = 'Заполни оба поля';
+    return;
+  }
+  syncConfig = { enabled: true, url, key };
+  saveSyncConfig(syncConfig);
+  document.getElementById('syncStatusText').textContent = 'Подключаюсь...';
+  await syncPullAll();
+  // push everything local up in case remote table is empty
+  for(const item of list){ await syncPush(item); }
+});
+
+document.getElementById('disableSync').addEventListener('click', () => {
+  syncConfig = { enabled: false, url: syncConfig.url, key: syncConfig.key };
+  saveSyncConfig(syncConfig);
+  updateSyncStatusUI(false);
+});
+
+// ---- top-level nav ----
+document.getElementById('mainNav').addEventListener('click', (e) => {
+  const btn = e.target.closest('.nav-tab');
+  if(!btn) return;
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t === btn));
+  const target = btn.dataset.view;
+  document.getElementById('shelfView').classList.toggle('active', target === 'shelf');
+  document.getElementById('cardsView').classList.toggle('active', target === 'cards');
+  document.getElementById('shardsView').classList.toggle('active', target === 'shards');
+});
+
+// ---- card drops tracker ----
+const DROPS_KEY = 'card-drops-v1';
+
+const RANK_CONFIG = {
+  F:  { label: 'F',          color: '#c7ccd6' },
+  D:  { label: 'D',          color: '#4ade80' },
+  C:  { label: 'C',          color: '#38bdf8' },
+  B:  { label: 'B',          color: '#a78bfa' },
+  A:  { label: 'A',          color: '#ffcf5c' },
+  S:  { label: 'S',          color: '#ff5c5c' },
+  oD: { label: 'oD',         color: '#4ade80' },
+  oC: { label: 'oC',         color: '#38bdf8' },
+  oB: { label: 'oB',         color: '#a78bfa' },
+  oA: { label: 'oA',         color: '#ffcf5c' },
+  oS: { label: 'oS',         color: '#ff5c5c' }
+};
+const RANK_ORDER = ['F','D','C','B','A','S','oD','oC','oB','oA','oS'];
+
+function loadDrops(){
+  try{
+    const raw = localStorage.getItem(DROPS_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return [];
+}
+function saveDrops(d){ localStorage.setItem(DROPS_KEY, JSON.stringify(d)); }
+
+let drops = loadDrops();
+
+function todayStr(){
+  return new Date().toISOString().slice(0, 10);
+}
+
+// date input defaults to today
+document.getElementById('d-date').value = todayStr();
+
+// build the multi-rank quantity grid once
+const rankGrid = document.getElementById('rankQtyGrid');
+rankGrid.innerHTML = RANK_ORDER.map(r => {
+  const cfg = RANK_CONFIG[r];
+  return `
+    <div class="rank-qty-item">
+      <label for="qty-${r}" style="color:${cfg.color}">${cfg.label}</label>
+      <input id="qty-${r}" type="number" min="0" step="any" value="0">
+    </div>`;
+}).join('');
+
+document.getElementById('dropForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const date = document.getElementById('d-date').value || todayStr();
+  const loggedAt = Date.now();
+  let added = false;
+
+  RANK_ORDER.forEach(r => {
+    const input = document.getElementById('qty-' + r);
+    const qty = parseFloat(input.value) || 0;
+    if(qty > 0){
+      drops.push({ id: crypto.randomUUID(), date, rank: r, qty, loggedAt });
+      input.value = 0;
+      added = true;
+    }
+  });
+
+  if(added){
+    saveDrops(drops);
+    renderCardsView();
+  }
+});
+
+// ---- import drops from xlsx/csv ----
+function excelDateToISO(val){
+  if(val instanceof Date){
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(val || '').trim();
+  // dd.mm.yyyy or dd/mm/yyyy
+  let m = s.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})$/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // already yyyy-mm-dd
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return null;
+}
+
+document.getElementById('drop-import-btn').addEventListener('click', () => {
+  const fileInput = document.getElementById('drop-import-file');
+  const resultEl = document.getElementById('drop-import-result');
+  const file = fileInput.files[0];
+  if(!file){
+    resultEl.textContent = 'Сначала выбери файл';
+    return;
+  }
+  resultEl.textContent = 'Читаю файл...';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+      if(rows.length < 2){
+        resultEl.textContent = 'В файле нет данных';
+        return;
+      }
+
+      const header = rows[0].map(h => String(h || '').trim());
+      const dateColIdx = header.findIndex(h => /дата/i.test(h));
+      const rankColIdx = {};
+      RANK_ORDER.forEach(r => {
+        const idx = header.findIndex(h => h.toLowerCase() === r.toLowerCase());
+        if(idx !== -1) rankColIdx[r] = idx;
+      });
+
+      if(dateColIdx === -1){
+        resultEl.textContent = 'Не нашёл столбец "Дата" в заголовке — проверь файл';
+        return;
+      }
+      if(Object.keys(rankColIdx).length === 0){
+        resultEl.textContent = 'Не нашёл ни одного столбца с рангом (F, D, C, B, A, S, oD, oC, oB, oA, oS)';
+        return;
+      }
+
+      let daysImported = 0, entriesImported = 0, skippedRows = 0;
+
+      for(let i = 1; i < rows.length; i++){
+        const row = rows[i];
+        if(!row || row.length === 0){ continue; }
+        const iso = excelDateToISO(row[dateColIdx]);
+        if(!iso){ skippedRows++; continue; }
+
+        const loggedAt = Date.now() + i; // keeps stable relative order within the batch
+        let dayHadData = false;
+        RANK_ORDER.forEach(r => {
+          const idx = rankColIdx[r];
+          if(idx === undefined) return;
+          const qty = parseFloat(row[idx]);
+          if(!isNaN(qty) && qty > 0){
+            drops.push({ id: crypto.randomUUID(), date: iso, rank: r, qty, loggedAt });
+            entriesImported++;
+            dayHadData = true;
+          }
+        });
+        if(dayHadData) daysImported++;
+      }
+
+      saveDrops(drops);
+      renderCardsView();
+      resultEl.textContent = `Импортировано дней: ${daysImported} (записей: ${entriesImported})${skippedRows ? `, пропущено строк без даты: ${skippedRows}` : ''}`;
+      fileInput.value = '';
+    }catch(err){
+      resultEl.textContent = 'Не удалось прочитать файл — проверь формат (.xlsx/.csv)';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+document.getElementById('rangeAll').addEventListener('click', () => {
+  document.getElementById('range-from').value = '';
+  document.getElementById('range-to').value = '';
+  renderCardsView();
+});
+document.getElementById('range-from').addEventListener('change', renderCardsView);
+document.getElementById('range-to').addEventListener('change', renderCardsView);
+
+function getFilteredDrops(){
+  const from = document.getElementById('range-from').value;
+  const to = document.getElementById('range-to').value;
+  return drops.filter(d => {
+    if(from && d.date < from) return false;
+    if(to && d.date > to) return false;
+    return true;
+  });
+}
+
+function renderCardsView(){
+  const filtered = getFilteredDrops();
+  const total = filtered.reduce((sum, d) => sum + d.qty, 0);
+
+  const byRank = {};
+  RANK_ORDER.forEach(r => byRank[r] = 0);
+  filtered.forEach(d => { byRank[d.rank] = (byRank[d.rank] || 0) + d.qty; });
+
+  document.getElementById('statsTotal').textContent = total ? `— всего карт: ${total}` : '';
+
+  const statsEl = document.getElementById('statsBars');
+  const statsTextEl = document.getElementById('statsText');
+  if(total === 0){
+    statsEl.innerHTML = `<div style="color:var(--muted); font-family:'Manrope',sans-serif; font-size:13px;">Нет данных за выбранный диапазон.</div>`;
+    statsTextEl.textContent = 'Нет данных за выбранный диапазон.';
+  } else {
+    statsEl.innerHTML = RANK_ORDER
+      .filter(r => byRank[r] > 0)
+      .map(r => {
+        const cfg = RANK_CONFIG[r];
+        const count = byRank[r];
+        const pct = ((count / total) * 100).toFixed(1);
+        return `
+          <div class="stat-row">
+            <span class="stat-label" style="color:${cfg.color}">${cfg.label}</span>
+            <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${pct}%; background:${cfg.color};"></div></div>
+            <span class="stat-count">${count} · ${pct}%</span>
+          </div>`;
+      }).join('');
+
+    statsTextEl.textContent = RANK_ORDER
+      .filter(r => byRank[r] > 0)
+      .map(r => {
+        const count = byRank[r];
+        const pct = ((count / total) * 100).toFixed(1);
+        return `${RANK_CONFIG[r].label} — ${count} (${pct}%)`;
+      }).join('\n');
+  }
+
+  // per-day breakdown
+  const dailyEl = document.getElementById('dailyBreakdown');
+  const dailyEmptyEl = document.getElementById('dailyEmpty');
+  const byDate = {};
+  filtered.forEach(d => {
+    if(!byDate[d.date]) byDate[d.date] = {};
+    byDate[d.date][d.rank] = (byDate[d.date][d.rank] || 0) + d.qty;
+  });
+  const dateKeys = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+
+  if(dateKeys.length === 0){
+    dailyEl.innerHTML = '';
+    dailyEmptyEl.style.display = 'block';
+  } else {
+    dailyEmptyEl.style.display = 'none';
+    const today = todayStr();
+    dailyEl.innerHTML = dateKeys.map(date => {
+      const dayRanks = byDate[date];
+      const dayTotal = Object.values(dayRanks).reduce((s, n) => s + n, 0);
+      const chips = RANK_ORDER
+        .filter(r => dayRanks[r] > 0)
+        .map(r => {
+          const cfg = RANK_CONFIG[r];
+          return `<span class="day-chip" style="background:${cfg.color}22; color:${cfg.color};">${cfg.label} ×${dayRanks[r]}</span>`;
+        }).join('');
+      return `
+        <div class="day-row">
+          <div class="day-row-top">
+            <span class="day-date${date === today ? ' today' : ''}">${formatDate(date)}${date === today ? ' · сегодня' : ''}</span>
+            <span class="day-total">всего: ${dayTotal}</span>
+          </div>
+          <div class="day-chips">${chips}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // history — most recent first (by date, then by log time)
+  const historyEl = document.getElementById('dropHistory');
+  const emptyEl = document.getElementById('dropEmpty');
+  const sorted = filtered.slice().sort((a, b) => {
+    if(a.date !== b.date) return a.date < b.date ? 1 : -1;
+    return b.loggedAt - a.loggedAt;
+  });
+
+  if(sorted.length === 0){
+    historyEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+  } else {
+    emptyEl.style.display = 'none';
+    historyEl.innerHTML = sorted.map(d => {
+      const cfg = RANK_CONFIG[d.rank];
+      return `
+        <div class="history-row">
+          <span class="history-date">${formatDate(d.date)}</span>
+          <span class="rank-badge" style="background:${cfg.color}22; color:${cfg.color};">${cfg.label}</span>
+          <span class="history-qty">×${d.qty}</span>
+          <button class="btn-ghost history-delete" data-id="${d.id}">Удалить</button>
+        </div>`;
+    }).join('');
+
+    historyEl.querySelectorAll('.history-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        drops = drops.filter(d => d.id !== btn.dataset.id);
+        saveDrops(drops);
+        renderCardsView();
+      });
+    });
+  }
+}
+
+function formatDate(iso){
+  const [y, m, d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+renderCardsView();
+
+// ---- shard inventory ----
+const SHARDS_KEY = 'shard-inventory-v1';
+const SHARD_RANK_COLORS = {
+  oD: '#4ade80',
+  oC: '#38bdf8',
+  oB: '#a78bfa',
+  oA: '#ffcf5c',
+  oS: '#ff5c5c'
+};
+const SHARD_RANK_ORDER = ['oD', 'oC', 'oB', 'oA', 'oS'];
+
+function loadShards(){
+  try{
+    const raw = localStorage.getItem(SHARDS_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return [];
+}
+function saveShards(s){ localStorage.setItem(SHARDS_KEY, JSON.stringify(s)); }
+
+let shards = loadShards();
+
+document.getElementById('shardForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = document.getElementById('s-name').value.trim();
+  const title = document.getElementById('s-title').value.trim();
+  const rank = document.getElementById('s-rank').value;
+  const qty = Math.max(0.01, parseFloat(document.getElementById('s-qty').value) || 1);
+  const valueRaw = document.getElementById('s-value').value;
+  const value = valueRaw ? parseFloat(valueRaw) : null;
+
+  shards.push({ id: crypto.randomUUID(), name, title, rank, qty, value, addedAt: Date.now() });
+  saveShards(shards);
+
+  document.getElementById('shardForm').reset();
+  document.getElementById('s-qty').value = 1;
+  renderShardsView();
+});
+
+// ---- import from xlsx/csv ----
+// splits "Имя (Тайтл)" into name + title; parses cost strings like "1 25" / "1,25" -> 1.25
+function parseShardNameCell(raw){
+  const s = String(raw || '').trim();
+  const m = s.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+  if(m){
+    return { name: m[1].trim(), title: m[2].trim() };
+  }
+  return { name: s, title: '' };
+}
+function parseShardCostCell(raw){
+  if(raw === null || raw === undefined) return null;
+  let s = String(raw).trim().replace(',', '.');
+  const m = s.match(/^(-?\d+(?:[.\s]\d+)?)/);
+  if(!m) return null;
+  const num = parseFloat(m[1].replace(/\s+/, '.'));
+  return isNaN(num) ? null : num;
+}
+
+document.getElementById('s-import-btn').addEventListener('click', () => {
+  const fileInput = document.getElementById('s-import-file');
+  const resultEl = document.getElementById('s-import-result');
+  const file = fileInput.files[0];
+  if(!file){
+    resultEl.textContent = 'Сначала выбери файл';
+    return;
+  }
+  const rank = document.getElementById('s-import-rank').value;
+  resultEl.textContent = 'Читаю файл...';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+      let imported = 0, skipped = 0;
+      const now = Date.now();
+
+      rows.forEach(row => {
+        if(!row || row.length < 2) { skipped++; return; }
+        const cost = parseShardCostCell(row[1]);
+        const rawName = row[0];
+        if(cost === null || !rawName || String(rawName).trim() === ''){ skipped++; return; }
+
+        const { name, title } = parseShardNameCell(rawName);
+        shards.push({
+          id: crypto.randomUUID(),
+          name, title, rank,
+          qty: 1,
+          value: cost,
+          addedAt: now
+        });
+        imported++;
+      });
+
+      saveShards(shards);
+      renderShardsView();
+      resultEl.textContent = `Импортировано: ${imported}${skipped ? `, пропущено строк: ${skipped}` : ''}`;
+      fileInput.value = '';
+    }catch(err){
+      resultEl.textContent = 'Не удалось прочитать файл — проверь формат (.xlsx/.csv)';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function renderShardsView(){
+  const totalQty = shards.reduce((sum, s) => sum + s.qty, 0);
+
+  const byRank = {};
+  SHARD_RANK_ORDER.forEach(r => byRank[r] = 0);
+  shards.forEach(s => { byRank[s.rank] = (byRank[s.rank] || 0) + s.qty; });
+
+  document.getElementById('shardStatsTotal').textContent = totalQty ? `— всего осколков: ${totalQty}` : '';
+
+  const statsEl = document.getElementById('shardStatsBars');
+  if(totalQty === 0){
+    statsEl.innerHTML = `<div style="color:var(--muted); font-family:'Manrope',sans-serif; font-size:13px;">На аккаунте пока ничего не записано.</div>`;
+  } else {
+    statsEl.innerHTML = SHARD_RANK_ORDER
+      .filter(r => byRank[r] > 0)
+      .map(r => {
+        const color = SHARD_RANK_COLORS[r];
+        const count = byRank[r];
+        const pct = ((count / totalQty) * 100).toFixed(1);
+        return `
+          <div class="stat-row">
+            <span class="stat-label" style="color:${color}">${r}</span>
+            <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${pct}%; background:${color};"></div></div>
+            <span class="stat-count">${count} · ${pct}%</span>
+          </div>`;
+      }).join('');
+  }
+
+  const invEl = document.getElementById('shardInventory');
+  const emptyEl = document.getElementById('shardEmpty');
+  const sorted = shards.slice().sort((a, b) => b.addedAt - a.addedAt);
+
+  if(sorted.length === 0){
+    invEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+  } else {
+    emptyEl.style.display = 'none';
+    invEl.innerHTML = sorted.map(s => {
+      const color = SHARD_RANK_COLORS[s.rank];
+      const total = s.value !== null ? (s.value * s.qty) : null;
+      return `
+        <div class="shard-row">
+          <span class="rank-badge" style="background:${color}22; color:${color}; width:52px;">${s.rank}</span>
+          <div class="shard-info">
+            <div class="shard-name">${escapeHtml(s.name)}</div>
+            ${s.title ? `<div class="shard-title">${escapeHtml(s.title)}</div>` : ''}
+          </div>
+          <span class="shard-qty">×${s.qty}</span>
+          <span class="shard-value">${s.value !== null ? s.value + ' / шт' : '—'}</span>
+          <span class="shard-total">${total !== null ? total : '—'}</span>
+          <button class="btn-ghost history-delete" data-id="${s.id}">Удалить</button>
+        </div>`;
+    }).join('');
+
+    invEl.querySelectorAll('.history-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        shards = shards.filter(s => s.id !== btn.dataset.id);
+        saveShards(shards);
+        renderShardsView();
+      });
+    });
+  }
+}
+
+renderShardsView();
+
+// ---- init ----
+renderTabs();
+render();
+if(syncConfig.enabled){ syncPullAll(); }
+</script>
+
+</body>
+</html>
